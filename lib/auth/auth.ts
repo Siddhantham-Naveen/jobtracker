@@ -1,9 +1,13 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
+import { emailOTP } from "better-auth/plugins";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { initializeUserBoard } from "../init-user-board";
 import connectDB from "../db";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const mongooseInstance = await connectDB();
 const client = mongooseInstance.connection.getClient();
@@ -22,6 +26,27 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  plugins: [
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 300, // OTP valid for 5 minutes
+      async sendVerificationOTP({ email, otp, type }) {
+        if (type === "forget-password") {
+          await resend.emails.send({
+            from: "Job Tracker <onboarding@resend.dev>",
+            to: email,
+            subject: "Your Job Tracker password reset code",
+            html: `
+              <p>Hi,</p>
+              <p>Your password reset code is:</p>
+              <h2 style="letter-spacing: 4px;">${otp}</h2>
+              <p>This code expires in 5 minutes. If you didn't request this, you can ignore this email.</p>
+            `,
+          });
+        }
+      },
+    }),
+  ],
   databaseHooks: {
     user: {
       create: {

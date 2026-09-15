@@ -1,19 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authClient } from "@/lib/auth/auth-client";
 
-function ResetPasswordForm() {
+export default function ForgotPasswordPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const emailFromUrl = searchParams.get("email") || "";
-
-  const [email, setEmail] = useState(emailFromUrl);
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,87 +16,61 @@ function ResetPasswordForm() {
     setStatus("loading");
     setErrorMsg("");
 
-    const { error } = await authClient.emailOtp.resetPassword({
-      email,
-      otp,
-      password: newPassword,
-    });
+    try {
+      const { error } = await authClient.emailOtp.sendVerificationOtp({
+        email,
+        type: "forget-password",
+      });
 
-    if (error) {
+      if (error) {
+        setStatus("error");
+        setErrorMsg(error.message || "Something went wrong. Try again.");
+        return;
+      }
+
+      // Send them to the reset page, carrying the email along
+      router.push(`/reset-password?email=${encodeURIComponent(email)}`);
+    } catch (err) {
       setStatus("error");
-      setErrorMsg(error.message || "Invalid or expired code. Try again.");
-      return;
+      setErrorMsg("Network error. Check your connection and try again.");
     }
-
-    setStatus("success");
-    setTimeout(() => router.push("/sign-in"), 2000);
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-md rounded-lg border p-8">
-        <h1 className="text-2xl font-semibold mb-2">Reset Password</h1>
+        <h1 className="text-2xl font-semibold mb-2">Forgot Password</h1>
         <p className="text-sm text-gray-500 mb-6">
-          Enter the code we emailed you along with your new password.
+          Enter your email and we&apos;ll send you a 6-digit code to reset your password.
         </p>
 
-        {status === "success" ? (
-          <p className="text-green-600">Password updated! Redirecting to sign in...</p>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input
-              type="email"
-              required
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border rounded-md px-3 py-2"
-            />
-            <input
-              type="text"
-              required
-              placeholder="6-digit code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              maxLength={6}
-              className="w-full border rounded-md px-3 py-2 tracking-widest"
-            />
-            <input
-              type="password"
-              required
-              minLength={8}
-              placeholder="New password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full border rounded-md px-3 py-2"
-            />
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className="w-full bg-pink-500 text-white rounded-md py-2"
-            >
-              {status === "loading" ? "Resetting..." : "Reset Password"}
-            </button>
-            {status === "error" && (
-              <p className="text-red-500 text-sm">{errorMsg}</p>
-            )}
-          </form>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="email"
+            required
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border rounded-md px-3 py-2"
+          />
+          <button
+            type="submit"
+            disabled={status === "loading"}
+            className="w-full bg-pink-500 text-white rounded-md py-2"
+          >
+            {status === "loading" ? "Sending..." : "Send Code"}
+          </button>
+          {status === "error" && (
+            <p className="text-red-500 text-sm">{errorMsg}</p>
+          )}
+        </form>
 
         <p className="text-sm text-center mt-4">
-          <Link href="/forgot-password" className="text-pink-500">
-            Didn't get a code? Send again
+          <Link href="/sign-in" className="text-pink-500">
+            Back to Sign In
           </Link>
         </p>
       </div>
     </div>
-  );
-}
-
-export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
-      <ResetPasswordForm />
-    </Suspense>
   );
 }
